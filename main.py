@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """
 Stock Market Notification System for Huawei Band 10
-Fetches BTC-USD price and sends to WhatsApp via CallMeBot API
+Fetches BTC-USD price and sends to WhatsApp via Ultramsg API
 """
 
 import os
 import sys
-from urllib.parse import quote
 import requests
 import yfinance as yf
 from datetime import datetime
@@ -45,21 +44,26 @@ def format_message(btc_price):
     return message
 
 
-def send_whatsapp_notification(phone_number, api_key, message):
-    """Send message via CallMeBot WhatsApp API"""
+def send_whatsapp_notification(instance_id, api_token, phone_number, message):
+    """Send message via Ultramsg WhatsApp API"""
     try:
-        # URL encode the message
-        encoded_message = quote(message)
+        # Ultramsg API endpoint
+        url = f"https://api.ultramsg.com/{instance_id}/messages/chat"
 
-        # CallMeBot API endpoint
-        url = f"https://api.callmebot.com/whatsapp.php?phone={phone_number}&text={encoded_message}&apikey={api_key}"
+        # Prepare payload
+        payload = {
+            "token": api_token,
+            "to": phone_number,
+            "body": message
+        }
 
-        # Send GET request
-        response = requests.get(url, timeout=10)
+        # Send POST request
+        response = requests.post(url, data=payload, timeout=10)
 
         if response.status_code == 200:
             print(f"✅ Notification sent successfully!")
             print(f"Message: {message}")
+            print(f"Response: {response.json()}")
             return True
         else:
             print(f"❌ Failed to send notification. Status code: {response.status_code}")
@@ -81,17 +85,19 @@ def main():
     print("=" * 50)
 
     # Read environment variables
+    instance_id = os.environ.get("INSTANCE_ID")
+    api_token = os.environ.get("API_TOKEN")
     phone_number = os.environ.get("PHONE_NUMBER")
-    api_key = os.environ.get("API_KEY")
 
     # Validate environment variables
-    if not phone_number or not api_key:
+    if not instance_id or not api_token or not phone_number:
         print("❌ ERROR: Missing required environment variables!")
-        print("   Required: PHONE_NUMBER and API_KEY")
+        print("   Required: INSTANCE_ID, API_TOKEN, and PHONE_NUMBER")
         sys.exit(1)
 
-    print(f"📱 Phone: {phone_number[:4]}****{phone_number[-2:]}")
-    print(f"🔑 API Key: {api_key[:4]}****")
+    print(f"📱 Instance: {instance_id}")
+    print(f"🔑 API Token: {api_token[:4]}****")
+    print(f"📞 Phone: {phone_number}")
     print()
 
     # Fetch stock data
@@ -112,7 +118,7 @@ def main():
 
     # Send notification
     print("📤 Sending WhatsApp notification...")
-    success = send_whatsapp_notification(phone_number, api_key, message)
+    success = send_whatsapp_notification(instance_id, api_token, phone_number, message)
 
     if success:
         print("✅ Process completed successfully!")

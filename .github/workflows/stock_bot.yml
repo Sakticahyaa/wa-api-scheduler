@@ -36,8 +36,9 @@ jobs:
 
       - name: Run stock notification script
         env:
+          INSTANCE_ID: ${{ secrets.INSTANCE_ID }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
           PHONE_NUMBER: ${{ secrets.PHONE_NUMBER }}
-          API_KEY: ${{ secrets.API_KEY }}
         run: |
           python main.py
 
