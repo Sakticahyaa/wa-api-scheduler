@@ -18,7 +18,7 @@ def fetch_stock_data():
     try:
         print("  [1/3] Trying Binance API...")
 
-        # Get current price
+        # Get current price and 24h change
         url = "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT"
         response = requests.get(url, timeout=10)
 
@@ -27,10 +27,24 @@ def fetch_stock_data():
             current_price = float(data['lastPrice'])
             change_24h = float(data['priceChangePercent'])
 
-            # Calculate 15-min change from recent trades
-            change_15m = 0.0  # Binance doesn't provide this easily, use 0
+            # Get 15-minute change using klines (candlestick data)
+            change_15m = 0.0
+            try:
+                klines_url = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=15m&limit=2"
+                klines_response = requests.get(klines_url, timeout=10)
 
-            print(f"  Success with Binance! Price: ${current_price:,.2f}, 24h: {change_24h:+.2f}%")
+                if klines_response.status_code == 200:
+                    klines = klines_response.json()
+                    if len(klines) >= 2:
+                        # klines format: [open_time, open, high, low, close, ...]
+                        price_15m_ago = float(klines[-2][4])  # Close price of previous 15min candle
+                        current_price_15m = float(klines[-1][4])  # Close price of current 15min candle
+                        change_15m = ((current_price_15m - price_15m_ago) / price_15m_ago) * 100
+                        print(f"  15min change calculated: {change_15m:+.2f}%")
+            except Exception as e15:
+                print(f"  Warning: Could not fetch 15min data: {e15}")
+
+            print(f"  Success with Binance! Price: ${current_price:,.2f}, 24h: {change_24h:+.2f}%, 15m: {change_15m:+.2f}%")
             return current_price, change_24h, change_15m
     except Exception as e:
         print(f"  Binance failed: {e}")
@@ -47,9 +61,30 @@ def fetch_stock_data():
             if 'bitcoin' in data:
                 current_price = data['bitcoin']['usd']
                 change_24h = data['bitcoin']['usd_24h_change']
-                change_15m = 0.0
 
-                print(f"  Success with CoinGecko! Price: ${current_price:,.2f}, 24h: {change_24h:+.2f}%")
+                # Try to get 15-minute change from market chart
+                change_15m = 0.0
+                try:
+                    # Get last 1 hour of data (4 points at 15min intervals)
+                    import time
+                    current_timestamp = int(time.time())
+                    from_timestamp = current_timestamp - 3600  # 1 hour ago
+
+                    chart_url = f"https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from={from_timestamp}&to={current_timestamp}"
+                    chart_response = requests.get(chart_url, timeout=10)
+
+                    if chart_response.status_code == 200:
+                        chart_data = chart_response.json()
+                        if 'prices' in chart_data and len(chart_data['prices']) >= 2:
+                            # Get price from ~15 minutes ago (use second-to-last data point)
+                            price_15m_ago = chart_data['prices'][-2][1]
+                            latest_price = chart_data['prices'][-1][1]
+                            change_15m = ((latest_price - price_15m_ago) / price_15m_ago) * 100
+                            print(f"  15min change calculated: {change_15m:+.2f}%")
+                except Exception as e15:
+                    print(f"  Warning: Could not fetch 15min data: {e15}")
+
+                print(f"  Success with CoinGecko! Price: ${current_price:,.2f}, 24h: {change_24h:+.2f}%, 15m: {change_15m:+.2f}%")
                 return current_price, change_24h, change_15m
     except Exception as e:
         print(f"  CoinGecko failed: {e}")
