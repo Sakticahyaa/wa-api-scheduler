@@ -113,19 +113,23 @@ def fetch_crypto_price(symbol, binance_symbol, coingecko_id):
 
 def fetch_stock_data():
     """Fetch BTC, SUI, BNB, and XRP prices"""
+    import time
     print("Fetching crypto prices...")
 
     # Fetch BTC
     print("\n  Fetching BTC...")
     btc_price, btc_24h, btc_1h = fetch_crypto_price("BTC", "BTCUSDT", "bitcoin")
+    time.sleep(1.5)  # Delay to avoid CoinGecko rate limiting
 
     # Fetch SUI
     print("\n  Fetching SUI...")
     sui_price, sui_24h, sui_1h = fetch_crypto_price("SUI", "SUIUSDT", "sui")
+    time.sleep(1.5)  # Delay to avoid CoinGecko rate limiting
 
     # Fetch BNB
     print("\n  Fetching BNB...")
     bnb_price, bnb_24h, bnb_1h = fetch_crypto_price("BNB", "BNBUSDT", "binancecoin")
+    time.sleep(1.5)  # Delay to avoid CoinGecko rate limiting
 
     # Fetch XRP
     print("\n  Fetching XRP...")
