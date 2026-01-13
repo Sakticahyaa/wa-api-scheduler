@@ -30,16 +30,19 @@ def fetch_crypto_price(symbol, binance_symbol, coingecko_id):
             # Get 1-hour change using klines (candlestick data)
             change_1h = 0.0
             try:
+                # Get the last completed 1-hour candle (1 hour ago)
                 klines_url = f"https://api.binance.com/api/v3/klines?symbol={binance_symbol}&interval=1h&limit=2"
                 klines_response = requests.get(klines_url, timeout=10)
 
                 if klines_response.status_code == 200:
                     klines = klines_response.json()
-                    if len(klines) >= 2:
+                    if len(klines) >= 1:
                         # klines format: [open_time, open, high, low, close, ...]
-                        price_1h_ago = float(klines[-2][4])  # Close price of previous 1h candle
-                        current_price_1h = float(klines[-1][4])  # Close price of current 1h candle
-                        change_1h = ((current_price_1h - price_1h_ago) / price_1h_ago) * 100
+                        # Use the close price of the last completed 1h candle (1 hour ago)
+                        price_1h_ago = float(klines[-2][4]) if len(klines) >= 2 else float(klines[-1][1])
+
+                        # Compare with current price (from the ticker data we already have)
+                        change_1h = ((current_price - price_1h_ago) / price_1h_ago) * 100
                         print(f"  [{symbol}] 1h change: {change_1h:+.2f}%")
             except Exception as e1h:
                 print(f"  [{symbol}] Warning: Could not fetch 1h data: {e1h}")
@@ -76,9 +79,23 @@ def fetch_crypto_price(symbol, binance_symbol, coingecko_id):
                     if chart_response.status_code == 200:
                         chart_data = chart_response.json()
                         if 'prices' in chart_data and len(chart_data['prices']) >= 2:
-                            # Get price from ~1 hour ago (use second-to-last data point)
-                            price_1h_ago = chart_data['prices'][-2][1]
+                            # Get the most recent price (latest)
                             latest_price = chart_data['prices'][-1][1]
+                            latest_timestamp = chart_data['prices'][-1][0] / 1000  # Convert to seconds
+
+                            # Find the price closest to exactly 1 hour (3600 seconds) ago
+                            target_timestamp = latest_timestamp - 3600
+                            closest_idx = 0
+                            min_diff = float('inf')
+
+                            for i, (timestamp_ms, price) in enumerate(chart_data['prices']):
+                                timestamp = timestamp_ms / 1000
+                                diff = abs(timestamp - target_timestamp)
+                                if diff < min_diff:
+                                    min_diff = diff
+                                    closest_idx = i
+
+                            price_1h_ago = chart_data['prices'][closest_idx][1]
                             change_1h = ((latest_price - price_1h_ago) / price_1h_ago) * 100
                             print(f"  [{symbol}] 1h change: {change_1h:+.2f}%")
                 except Exception as e1h:
