@@ -12,34 +12,51 @@ from datetime import datetime
 
 
 def fetch_stock_data():
-    """Fetch current price for BTC-USD"""
+    """Fetch current price and percentage changes for BTC-USD"""
     try:
-        # Fetch Bitcoin price
         btc = yf.Ticker("BTC-USD")
-        btc_data = btc.history(period="1d")
 
-        if btc_data.empty:
-            btc_price = "N/A"
+        # Get 24h data for current price and 24h change
+        btc_24h = btc.history(period="2d")
+        if btc_24h.empty or len(btc_24h) < 2:
+            return None, None, None
+
+        current_price = btc_24h['Close'].iloc[-1]
+        price_24h_ago = btc_24h['Close'].iloc[-2]
+        change_24h = ((current_price - price_24h_ago) / price_24h_ago) * 100
+
+        # Get 15-minute data for 15min change
+        btc_15m = btc.history(period="1d", interval="15m")
+        if btc_15m.empty or len(btc_15m) < 2:
+            change_15m = 0.0
         else:
-            btc_price = f"${btc_data['Close'].iloc[-1]:,.2f}"
+            price_15m_ago = btc_15m['Close'].iloc[-2]
+            change_15m = ((current_price - price_15m_ago) / price_15m_ago) * 100
 
-        return btc_price
+        return current_price, change_24h, change_15m
 
     except Exception as e:
         print(f"Error fetching stock data: {e}")
-        return None
+        return None, None, None
 
 
-def format_message(btc_price):
-    """Format message for small wearable screen with emojis"""
-    timestamp = datetime.now().strftime("%H:%M")
+def format_message(price, change_24h, change_15m):
+    """Format message for small wearable screen with percentage changes"""
+    if price is None:
+        timestamp = datetime.now().strftime("%H:%M")
+        return f"📉 Data Unavailable\n{timestamp}"
 
-    # Compact format optimized for small screens
-    if btc_price:
-        message = f"🚀 BTC {timestamp}\n\n"
-        message += f"₿ {btc_price}"
-    else:
-        message = f"📉 Data Unavailable\n{timestamp}"
+    # Format price with comma separator
+    price_str = f"${price:,.0f}"
+
+    # Format 24h change with +/- sign
+    change_24h_str = f"{change_24h:+.1f}%"
+
+    # Format 15min change with +/- sign
+    change_15m_str = f"{change_15m:+.1f}%"
+
+    # Compact format: BTC $92,142 [+2.5%] [-0.3%]
+    message = f"BTC {price_str} [{change_24h_str}] [{change_15m_str}]"
 
     return message
 
@@ -101,14 +118,18 @@ def main():
     print()
 
     # Fetch stock data
-    print("📊 Fetching BTC price...")
-    btc_price = fetch_stock_data()
+    print("📊 Fetching BTC price and percentage changes...")
+    price, change_24h, change_15m = fetch_stock_data()
 
-    if btc_price is None:
+    if price is None:
         print("⚠️  Warning: Could not fetch BTC data, sending error notification")
+    else:
+        print(f"💰 Price: ${price:,.2f}")
+        print(f"📈 24h Change: {change_24h:+.2f}%")
+        print(f"⚡ 15m Change: {change_15m:+.2f}%")
 
     # Format message
-    message = format_message(btc_price)
+    message = format_message(price, change_24h, change_15m)
     print()
     print("📝 Message Preview:")
     print("-" * 30)
