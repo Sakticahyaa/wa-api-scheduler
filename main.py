@@ -59,6 +59,9 @@ def fetch_crypto_price(symbol, binance_symbol, coingecko_id):
         url = f"https://api.coingecko.com/api/v3/simple/price?ids={coingecko_id}&vs_currencies=usd&include_24hr_change=true"
         response = requests.get(url, timeout=10)
 
+        if response.status_code != 200:
+            print(f"  [{symbol}] CoinGecko price API returned status {response.status_code}: {response.text[:100]}")
+
         if response.status_code == 200:
             data = response.json()
             if coingecko_id in data:
@@ -135,9 +138,15 @@ def fetch_stock_data():
     bnb_price, bnb_24h, bnb_1h = fetch_crypto_price("BNB", "BNBUSDT", "binancecoin")
     time.sleep(2)  # Delay to avoid CoinGecko rate limiting
 
-    # Fetch XRP
+    # Fetch XRP (with retry if it fails)
     print("\n  Fetching XRP...")
     xrp_price, xrp_24h, xrp_1h = fetch_crypto_price("XRP", "XRPUSDT", "ripple")
+
+    # Retry XRP if it failed (common due to rate limiting)
+    if xrp_price is None:
+        print("  XRP failed, retrying after 5 seconds...")
+        time.sleep(5)
+        xrp_price, xrp_24h, xrp_1h = fetch_crypto_price("XRP", "XRPUSDT", "ripple")
 
     return (btc_price, btc_24h, btc_1h), (sui_price, sui_24h, sui_1h), (bnb_price, bnb_24h, bnb_1h), (xrp_price, xrp_24h, xrp_1h)
 
