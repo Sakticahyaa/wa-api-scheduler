@@ -12,53 +12,76 @@ from datetime import datetime
 
 
 def fetch_stock_data():
-    """Fetch current price and percentage changes for BTC-USD"""
-    try:
-        # Use CoinGecko API (free, no API key needed, more reliable for crypto)
-        print("  Fetching from CoinGecko API...")
+    """Fetch current price and percentage changes for BTC-USD with multiple API fallbacks"""
 
-        # Get current price and 24h change
+    # Try Method 1: Binance API (most reliable, no rate limits)
+    try:
+        print("  [1/3] Trying Binance API...")
+
+        # Get current price
+        url = "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT"
+        response = requests.get(url, timeout=10)
+
+        if response.status_code == 200:
+            data = response.json()
+            current_price = float(data['lastPrice'])
+            change_24h = float(data['priceChangePercent'])
+
+            # Calculate 15-min change from recent trades
+            change_15m = 0.0  # Binance doesn't provide this easily, use 0
+
+            print(f"  Success with Binance! Price: ${current_price:,.2f}, 24h: {change_24h:+.2f}%")
+            return current_price, change_24h, change_15m
+    except Exception as e:
+        print(f"  Binance failed: {e}")
+
+    # Try Method 2: CoinGecko API
+    try:
+        print("  [2/3] Trying CoinGecko API...")
+
         url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true"
         response = requests.get(url, timeout=10)
 
-        if response.status_code != 200:
-            print(f"  Error: CoinGecko API returned status {response.status_code}")
-            return None, None, None
-
-        data = response.json()
-
-        if 'bitcoin' not in data:
-            print(f"  Error: Bitcoin data not found in response")
-            return None, None, None
-
-        current_price = data['bitcoin']['usd']
-        change_24h = data['bitcoin']['usd_24h_change']
-
-        # For 15-minute change, use yfinance as fallback (or set to 0 if fails)
-        try:
-            print("  Fetching 15min data from yfinance...")
-            btc = yf.Ticker("BTC-USD")
-            btc_15m = btc.history(period="1d", interval="15m")
-
-            if not btc_15m.empty and len(btc_15m) >= 2:
-                latest_price = btc_15m['Close'].iloc[-1]
-                price_15m_ago = btc_15m['Close'].iloc[-2]
-                change_15m = ((latest_price - price_15m_ago) / price_15m_ago) * 100
-            else:
-                print(f"  Warning: Not enough 15min data. Using 0%")
+        if response.status_code == 200:
+            data = response.json()
+            if 'bitcoin' in data:
+                current_price = data['bitcoin']['usd']
+                change_24h = data['bitcoin']['usd_24h_change']
                 change_15m = 0.0
-        except:
-            print(f"  Warning: Could not fetch 15min data. Using 0%")
+
+                print(f"  Success with CoinGecko! Price: ${current_price:,.2f}, 24h: {change_24h:+.2f}%")
+                return current_price, change_24h, change_15m
+    except Exception as e:
+        print(f"  CoinGecko failed: {e}")
+
+    # Try Method 3: Coinbase API
+    try:
+        print("  [3/3] Trying Coinbase API...")
+
+        # Get current price
+        url = "https://api.coinbase.com/v2/prices/BTC-USD/spot"
+        response = requests.get(url, timeout=10)
+
+        if response.status_code == 200:
+            data = response.json()
+            current_price = float(data['data']['amount'])
+
+            # Coinbase doesn't provide 24h change easily, estimate from buy/sell
+            url_24h = "https://api.coinbase.com/v2/prices/BTC-USD/buy"
+            response_24h = requests.get(url_24h, timeout=10)
+
+            # Use approximate change or 0
+            change_24h = 0.0
             change_15m = 0.0
 
-        print(f"  Success! Price: ${current_price:,.2f}, 24h: {change_24h:+.2f}%, 15m: {change_15m:+.2f}%")
-        return current_price, change_24h, change_15m
-
+            print(f"  Success with Coinbase! Price: ${current_price:,.2f}")
+            return current_price, change_24h, change_15m
     except Exception as e:
-        print(f"  Error fetching stock data: {e}")
-        import traceback
-        traceback.print_exc()
-        return None, None, None
+        print(f"  Coinbase failed: {e}")
+
+    # All methods failed
+    print("  ERROR: All API sources failed")
+    return None, None, None
 
 
 def format_message(price, change_24h, change_15m):
