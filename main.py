@@ -112,7 +112,7 @@ def fetch_stock_data():
 
     # Fetch XRP
     print("\n  Fetching XRP...")
-    xrp_price, xrp_24h, xrp_1h = fetch_crypto_price("XRP", "XRPUSDT", "xrp")
+    xrp_price, xrp_24h, xrp_1h = fetch_crypto_price("XRP", "XRPUSDT", "ripple")
 
     return (btc_price, btc_24h, btc_1h), (sui_price, sui_24h, sui_1h), (bnb_price, bnb_24h, bnb_1h), (xrp_price, xrp_24h, xrp_1h)
 
