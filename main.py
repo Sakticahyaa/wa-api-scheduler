@@ -98,8 +98,12 @@ def fetch_crypto_price(symbol, binance_symbol, coingecko_id):
                             price_1h_ago = chart_data['prices'][closest_idx][1]
                             change_1h = ((latest_price - price_1h_ago) / price_1h_ago) * 100
                             print(f"  [{symbol}] 1h change: {change_1h:+.2f}%")
+                        else:
+                            print(f"  [{symbol}] Warning: Not enough price data for 1h calculation")
                 except Exception as e1h:
                     print(f"  [{symbol}] Warning: Could not fetch 1h data: {e1h}")
+                    import traceback
+                    traceback.print_exc()
 
                 print(f"  [{symbol}] Success with CoinGecko! Price: ${current_price:,.2f}, 24h: {change_24h:+.2f}%, 1h: {change_1h:+.2f}%")
                 return current_price, change_24h, change_1h
@@ -119,17 +123,17 @@ def fetch_stock_data():
     # Fetch BTC
     print("\n  Fetching BTC...")
     btc_price, btc_24h, btc_1h = fetch_crypto_price("BTC", "BTCUSDT", "bitcoin")
-    time.sleep(1.5)  # Delay to avoid CoinGecko rate limiting
+    time.sleep(2)  # Delay to avoid CoinGecko rate limiting
 
     # Fetch SUI
     print("\n  Fetching SUI...")
     sui_price, sui_24h, sui_1h = fetch_crypto_price("SUI", "SUIUSDT", "sui")
-    time.sleep(1.5)  # Delay to avoid CoinGecko rate limiting
+    time.sleep(2)  # Delay to avoid CoinGecko rate limiting
 
     # Fetch BNB
     print("\n  Fetching BNB...")
     bnb_price, bnb_24h, bnb_1h = fetch_crypto_price("BNB", "BNBUSDT", "binancecoin")
-    time.sleep(1.5)  # Delay to avoid CoinGecko rate limiting
+    time.sleep(2)  # Delay to avoid CoinGecko rate limiting
 
     # Fetch XRP
     print("\n  Fetching XRP...")
@@ -149,28 +153,28 @@ def format_message(btc_data, sui_data, bnb_data, xrp_data):
 
     # Format BTC
     if btc_price is not None:
-        btc_str = f"BTC ${btc_price:,.0f} [{btc_24h:+.1f}%] [{btc_1h:+.1f}%]"
+        btc_str = f"BTC ${btc_price:,.0f} [{btc_24h:+.2f}%] [{btc_1h:+.2f}%]"
         lines.append(btc_str)
     else:
         lines.append("BTC: Data N/A")
 
     # Format SUI
     if sui_price is not None:
-        sui_str = f"SUI ${sui_price:.3f} [{sui_24h:+.1f}%] [{sui_1h:+.1f}%]"
+        sui_str = f"SUI ${sui_price:.3f} [{sui_24h:+.2f}%] [{sui_1h:+.2f}%]"
         lines.append(sui_str)
     else:
         lines.append("SUI: Data N/A")
 
     # Format BNB
     if bnb_price is not None:
-        bnb_str = f"BNB ${bnb_price:,.2f} [{bnb_24h:+.1f}%] [{bnb_1h:+.1f}%]"
+        bnb_str = f"BNB ${bnb_price:,.2f} [{bnb_24h:+.2f}%] [{bnb_1h:+.2f}%]"
         lines.append(bnb_str)
     else:
         lines.append("BNB: Data N/A")
 
     # Format XRP
     if xrp_price is not None:
-        xrp_str = f"XRP ${xrp_price:.3f} [{xrp_24h:+.1f}%] [{xrp_1h:+.1f}%]"
+        xrp_str = f"XRP ${xrp_price:.3f} [{xrp_24h:+.2f}%] [{xrp_1h:+.2f}%]"
         lines.append(xrp_str)
     else:
         lines.append("XRP: Data N/A")
