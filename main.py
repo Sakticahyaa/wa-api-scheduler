@@ -27,25 +27,25 @@ def fetch_crypto_price(symbol, binance_symbol, coingecko_id):
             current_price = float(data['lastPrice'])
             change_24h = float(data['priceChangePercent'])
 
-            # Get 15-minute change using klines (candlestick data)
-            change_15m = 0.0
+            # Get 1-hour change using klines (candlestick data)
+            change_1h = 0.0
             try:
-                klines_url = f"https://api.binance.com/api/v3/klines?symbol={binance_symbol}&interval=15m&limit=2"
+                klines_url = f"https://api.binance.com/api/v3/klines?symbol={binance_symbol}&interval=1h&limit=2"
                 klines_response = requests.get(klines_url, timeout=10)
 
                 if klines_response.status_code == 200:
                     klines = klines_response.json()
                     if len(klines) >= 2:
                         # klines format: [open_time, open, high, low, close, ...]
-                        price_15m_ago = float(klines[-2][4])  # Close price of previous 15min candle
-                        current_price_15m = float(klines[-1][4])  # Close price of current 15min candle
-                        change_15m = ((current_price_15m - price_15m_ago) / price_15m_ago) * 100
-                        print(f"  [{symbol}] 15min change: {change_15m:+.2f}%")
-            except Exception as e15:
-                print(f"  [{symbol}] Warning: Could not fetch 15min data: {e15}")
+                        price_1h_ago = float(klines[-2][4])  # Close price of previous 1h candle
+                        current_price_1h = float(klines[-1][4])  # Close price of current 1h candle
+                        change_1h = ((current_price_1h - price_1h_ago) / price_1h_ago) * 100
+                        print(f"  [{symbol}] 1h change: {change_1h:+.2f}%")
+            except Exception as e1h:
+                print(f"  [{symbol}] Warning: Could not fetch 1h data: {e1h}")
 
-            print(f"  [{symbol}] Success with Binance! Price: ${current_price:,.2f}, 24h: {change_24h:+.2f}%, 15m: {change_15m:+.2f}%")
-            return current_price, change_24h, change_15m
+            print(f"  [{symbol}] Success with Binance! Price: ${current_price:,.2f}, 24h: {change_24h:+.2f}%, 1h: {change_1h:+.2f}%")
+            return current_price, change_24h, change_1h
     except Exception as e:
         print(f"  [{symbol}] Binance failed: {e}")
 
@@ -62,13 +62,13 @@ def fetch_crypto_price(symbol, binance_symbol, coingecko_id):
                 current_price = data[coingecko_id]['usd']
                 change_24h = data[coingecko_id]['usd_24h_change']
 
-                # Try to get 15-minute change from market chart
-                change_15m = 0.0
+                # Try to get 1-hour change from market chart
+                change_1h = 0.0
                 try:
-                    # Get last 1 hour of data (4 points at 15min intervals)
+                    # Get last 2 hours of data to calculate 1-hour change
                     import time
                     current_timestamp = int(time.time())
-                    from_timestamp = current_timestamp - 3600  # 1 hour ago
+                    from_timestamp = current_timestamp - 7200  # 2 hours ago
 
                     chart_url = f"https://api.coingecko.com/api/v3/coins/{coingecko_id}/market_chart/range?vs_currency=usd&from={from_timestamp}&to={current_timestamp}"
                     chart_response = requests.get(chart_url, timeout=10)
@@ -76,16 +76,16 @@ def fetch_crypto_price(symbol, binance_symbol, coingecko_id):
                     if chart_response.status_code == 200:
                         chart_data = chart_response.json()
                         if 'prices' in chart_data and len(chart_data['prices']) >= 2:
-                            # Get price from ~15 minutes ago (use second-to-last data point)
-                            price_15m_ago = chart_data['prices'][-2][1]
+                            # Get price from ~1 hour ago (use second-to-last data point)
+                            price_1h_ago = chart_data['prices'][-2][1]
                             latest_price = chart_data['prices'][-1][1]
-                            change_15m = ((latest_price - price_15m_ago) / price_15m_ago) * 100
-                            print(f"  [{symbol}] 15min change: {change_15m:+.2f}%")
-                except Exception as e15:
-                    print(f"  [{symbol}] Warning: Could not fetch 15min data: {e15}")
+                            change_1h = ((latest_price - price_1h_ago) / price_1h_ago) * 100
+                            print(f"  [{symbol}] 1h change: {change_1h:+.2f}%")
+                except Exception as e1h:
+                    print(f"  [{symbol}] Warning: Could not fetch 1h data: {e1h}")
 
-                print(f"  [{symbol}] Success with CoinGecko! Price: ${current_price:,.2f}, 24h: {change_24h:+.2f}%, 15m: {change_15m:+.2f}%")
-                return current_price, change_24h, change_15m
+                print(f"  [{symbol}] Success with CoinGecko! Price: ${current_price:,.2f}, 24h: {change_24h:+.2f}%, 1h: {change_1h:+.2f}%")
+                return current_price, change_24h, change_1h
     except Exception as e:
         print(f"  [{symbol}] CoinGecko failed: {e}")
 
@@ -100,56 +100,56 @@ def fetch_stock_data():
 
     # Fetch BTC
     print("\n  Fetching BTC...")
-    btc_price, btc_24h, btc_15m = fetch_crypto_price("BTC", "BTCUSDT", "bitcoin")
+    btc_price, btc_24h, btc_1h = fetch_crypto_price("BTC", "BTCUSDT", "bitcoin")
 
     # Fetch SUI
     print("\n  Fetching SUI...")
-    sui_price, sui_24h, sui_15m = fetch_crypto_price("SUI", "SUIUSDT", "sui")
+    sui_price, sui_24h, sui_1h = fetch_crypto_price("SUI", "SUIUSDT", "sui")
 
     # Fetch BNB
     print("\n  Fetching BNB...")
-    bnb_price, bnb_24h, bnb_15m = fetch_crypto_price("BNB", "BNBUSDT", "binancecoin")
+    bnb_price, bnb_24h, bnb_1h = fetch_crypto_price("BNB", "BNBUSDT", "binancecoin")
 
     # Fetch XRP
     print("\n  Fetching XRP...")
-    xrp_price, xrp_24h, xrp_15m = fetch_crypto_price("XRP", "XRPUSDT", "xrp")
+    xrp_price, xrp_24h, xrp_1h = fetch_crypto_price("XRP", "XRPUSDT", "xrp")
 
-    return (btc_price, btc_24h, btc_15m), (sui_price, sui_24h, sui_15m), (bnb_price, bnb_24h, bnb_15m), (xrp_price, xrp_24h, xrp_15m)
+    return (btc_price, btc_24h, btc_1h), (sui_price, sui_24h, sui_1h), (bnb_price, bnb_24h, bnb_1h), (xrp_price, xrp_24h, xrp_1h)
 
 
 def format_message(btc_data, sui_data, bnb_data, xrp_data):
     """Format message for small wearable screen with BTC, SUI, BNB, and XRP"""
-    btc_price, btc_24h, btc_15m = btc_data
-    sui_price, sui_24h, sui_15m = sui_data
-    bnb_price, bnb_24h, bnb_15m = bnb_data
-    xrp_price, xrp_24h, xrp_15m = xrp_data
+    btc_price, btc_24h, btc_1h = btc_data
+    sui_price, sui_24h, sui_1h = sui_data
+    bnb_price, bnb_24h, bnb_1h = bnb_data
+    xrp_price, xrp_24h, xrp_1h = xrp_data
 
     lines = []
 
     # Format BTC
     if btc_price is not None:
-        btc_str = f"BTC ${btc_price:,.0f} [{btc_24h:+.1f}%] [{btc_15m:+.1f}%]"
+        btc_str = f"BTC ${btc_price:,.0f} [{btc_24h:+.1f}%] [{btc_1h:+.1f}%]"
         lines.append(btc_str)
     else:
         lines.append("BTC: Data N/A")
 
     # Format SUI
     if sui_price is not None:
-        sui_str = f"SUI ${sui_price:.3f} [{sui_24h:+.1f}%] [{sui_15m:+.1f}%]"
+        sui_str = f"SUI ${sui_price:.3f} [{sui_24h:+.1f}%] [{sui_1h:+.1f}%]"
         lines.append(sui_str)
     else:
         lines.append("SUI: Data N/A")
 
     # Format BNB
     if bnb_price is not None:
-        bnb_str = f"BNB ${bnb_price:,.2f} [{bnb_24h:+.1f}%] [{bnb_15m:+.1f}%]"
+        bnb_str = f"BNB ${bnb_price:,.2f} [{bnb_24h:+.1f}%] [{bnb_1h:+.1f}%]"
         lines.append(bnb_str)
     else:
         lines.append("BNB: Data N/A")
 
     # Format XRP
     if xrp_price is not None:
-        xrp_str = f"XRP ${xrp_price:.3f} [{xrp_24h:+.1f}%] [{xrp_15m:+.1f}%]"
+        xrp_str = f"XRP ${xrp_price:.3f} [{xrp_24h:+.1f}%] [{xrp_1h:+.1f}%]"
         lines.append(xrp_str)
     else:
         lines.append("XRP: Data N/A")
@@ -220,29 +220,29 @@ def main():
     btc_data, sui_data, bnb_data, xrp_data = fetch_stock_data()
 
     # Display fetched data
-    btc_price, btc_24h, btc_15m = btc_data
-    sui_price, sui_24h, sui_15m = sui_data
-    bnb_price, bnb_24h, bnb_15m = bnb_data
-    xrp_price, xrp_24h, xrp_15m = xrp_data
+    btc_price, btc_24h, btc_1h = btc_data
+    sui_price, sui_24h, sui_1h = sui_data
+    bnb_price, bnb_24h, bnb_1h = bnb_data
+    xrp_price, xrp_24h, xrp_1h = xrp_data
 
     print()
     if btc_price is not None:
-        print(f"BTC: ${btc_price:,.2f}, 24h: {btc_24h:+.2f}%, 15m: {btc_15m:+.2f}%")
+        print(f"BTC: ${btc_price:,.2f}, 24h: {btc_24h:+.2f}%, 1h: {btc_1h:+.2f}%")
     else:
         print("BTC: Could not fetch data")
 
     if sui_price is not None:
-        print(f"SUI: ${sui_price:.3f}, 24h: {sui_24h:+.2f}%, 15m: {sui_15m:+.2f}%")
+        print(f"SUI: ${sui_price:.3f}, 24h: {sui_24h:+.2f}%, 1h: {sui_1h:+.2f}%")
     else:
         print("SUI: Could not fetch data")
 
     if bnb_price is not None:
-        print(f"BNB: ${bnb_price:,.2f}, 24h: {bnb_24h:+.2f}%, 15m: {bnb_15m:+.2f}%")
+        print(f"BNB: ${bnb_price:,.2f}, 24h: {bnb_24h:+.2f}%, 1h: {bnb_1h:+.2f}%")
     else:
         print("BNB: Could not fetch data")
 
     if xrp_price is not None:
-        print(f"XRP: ${xrp_price:.3f}, 24h: {xrp_24h:+.2f}%, 15m: {xrp_15m:+.2f}%")
+        print(f"XRP: ${xrp_price:.3f}, 24h: {xrp_24h:+.2f}%, 1h: {xrp_1h:+.2f}%")
     else:
         print("XRP: Could not fetch data")
 
