@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Stock Market Notification System for Huawei Band 10
-Fetches BTC and SUI prices and sends to WhatsApp via Ultramsg API
+Fetches BTC, SUI, BNB, and XRP prices and sends to Telegram
 """
 
 import os
@@ -304,26 +304,28 @@ def format_message(btc_data, sui_data, bnb_data, xrp_data):
     return message
 
 
-def send_whatsapp_notification(instance_id, api_token, phone_number, message):
-    """Send message via Ultramsg WhatsApp API"""
+def send_telegram_notification(bot_token, chat_id, message):
+    """Send message via Telegram Bot API"""
     try:
-        # Ultramsg API endpoint
-        url = f"https://api.ultramsg.com/{instance_id}/messages/chat"
+        # Telegram Bot API endpoint
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
 
         # Prepare payload
         payload = {
-            "token": api_token,
-            "to": phone_number,
-            "body": message
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "HTML"
         }
 
         # Send POST request
-        response = requests.post(url, data=payload, timeout=10)
+        response = requests.post(url, json=payload, timeout=10)
 
         if response.status_code == 200:
             print(f"Notification sent successfully!")
             print(f"Message: {message}")
-            print(f"Response: {response.json()}")
+            result = response.json()
+            if result.get('ok'):
+                print(f"Telegram response: Message delivered (ID: {result['result']['message_id']})")
             return True
         else:
             print(f"Failed to send notification. Status code: {response.status_code}")
@@ -341,23 +343,21 @@ def send_whatsapp_notification(instance_id, api_token, phone_number, message):
 def main():
     """Main execution function"""
     print("=" * 50)
-    print("Stock Market Notification System")
+    print("Crypto Price Notification System")
     print("=" * 50)
 
     # Read environment variables
-    instance_id = os.environ.get("INSTANCE_ID")
-    api_token = os.environ.get("API_TOKEN")
-    phone_number = os.environ.get("PHONE_NUMBER")
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
 
     # Validate environment variables
-    if not instance_id or not api_token or not phone_number:
+    if not bot_token or not chat_id:
         print("ERROR: Missing required environment variables!")
-        print("   Required: INSTANCE_ID, API_TOKEN, and PHONE_NUMBER")
+        print("   Required: TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID")
         sys.exit(1)
 
-    print(f"Instance: {instance_id}")
-    print(f"API Token: {api_token[:4]}****")
-    print(f"Phone: {phone_number}")
+    print(f"Bot Token: {bot_token[:10]}****")
+    print(f"Chat ID: {chat_id}")
     print()
 
     # Fetch crypto data
@@ -400,8 +400,8 @@ def main():
     print()
 
     # Send notification
-    print("Sending WhatsApp notification...")
-    success = send_whatsapp_notification(instance_id, api_token, phone_number, message)
+    print("Sending Telegram notification...")
+    success = send_telegram_notification(bot_token, chat_id, message)
 
     if success:
         print("Process completed successfully!")

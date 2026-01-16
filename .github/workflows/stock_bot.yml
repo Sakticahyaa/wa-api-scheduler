@@ -1,4 +1,4 @@
-name: Stock Market Notification Bot
+name: Crypto Price Notification Bot
 
 on:
   # Run every 15 minutes
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  send-stock-notification:
+  send-crypto-notification:
     runs-on: ubuntu-latest
 
     steps:
@@ -34,11 +34,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run stock notification script
+      - name: Run crypto notification script
         env:
-          INSTANCE_ID: ${{ secrets.INSTANCE_ID }}
-          API_TOKEN: ${{ secrets.API_TOKEN }}
-          PHONE_NUMBER: ${{ secrets.PHONE_NUMBER }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           python main.py
 
