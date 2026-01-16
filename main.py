@@ -73,6 +73,11 @@ def fetch_crypto_price(symbol, binance_symbol, coingecko_id):
                 try:
                     # Get last 2 hours of data to calculate 1-hour change
                     import time
+
+                    # Add extra delay for XRP to avoid rate limiting
+                    if symbol == "XRP":
+                        time.sleep(2)
+
                     current_timestamp = int(time.time())
                     from_timestamp = current_timestamp - 7200  # 2 hours ago
 
@@ -118,37 +123,142 @@ def fetch_crypto_price(symbol, binance_symbol, coingecko_id):
     return None, None, None
 
 
+def fetch_all_cryptos_batch():
+    """Fetch all 4 cryptos in a single batch call to avoid rate limiting"""
+    import time
+    print("Fetching all crypto prices in batch...")
+
+    try:
+        # Single batch call for all 4 cryptos (price + 24h change)
+        url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,sui,binancecoin,ripple&vs_currencies=usd&include_24hr_change=true"
+        response = requests.get(url, timeout=10)
+
+        if response.status_code != 200:
+            print(f"  Batch API returned status {response.status_code}: {response.text[:100]}")
+            return None
+
+        data = response.json()
+        print(f"  Successfully fetched all 4 cryptos in one call")
+
+        # Extract data for each crypto
+        results = {}
+        for symbol, coin_id in [("BTC", "bitcoin"), ("SUI", "sui"), ("BNB", "binancecoin"), ("XRP", "ripple")]:
+            if coin_id in data:
+                results[symbol] = {
+                    "price": data[coin_id]['usd'],
+                    "change_24h": data[coin_id]['usd_24h_change']
+                }
+            else:
+                results[symbol] = None
+
+        return results
+
+    except Exception as e:
+        print(f"  Batch fetch failed: {e}")
+        return None
+
+
 def fetch_stock_data():
     """Fetch BTC, SUI, BNB, and XRP prices"""
     import time
     print("Fetching crypto prices...")
 
+    # Try batch fetch first (more efficient, avoids rate limiting)
+    batch_data = fetch_all_cryptos_batch()
+
+    if batch_data:
+        # Fetch 1-hour data for each crypto with delays
+        btc_price = batch_data["BTC"]["price"] if batch_data["BTC"] else None
+        btc_24h = batch_data["BTC"]["change_24h"] if batch_data["BTC"] else 0
+        btc_1h = 0.0
+        if btc_price:
+            time.sleep(2)
+            btc_1h = fetch_1h_change("BTC", "bitcoin")
+
+        sui_price = batch_data["SUI"]["price"] if batch_data["SUI"] else None
+        sui_24h = batch_data["SUI"]["change_24h"] if batch_data["SUI"] else 0
+        sui_1h = 0.0
+        if sui_price:
+            time.sleep(2)
+            sui_1h = fetch_1h_change("SUI", "sui")
+
+        bnb_price = batch_data["BNB"]["price"] if batch_data["BNB"] else None
+        bnb_24h = batch_data["BNB"]["change_24h"] if batch_data["BNB"] else 0
+        bnb_1h = 0.0
+        if bnb_price:
+            time.sleep(2)
+            bnb_1h = fetch_1h_change("BNB", "binancecoin")
+
+        xrp_price = batch_data["XRP"]["price"] if batch_data["XRP"] else None
+        xrp_24h = batch_data["XRP"]["change_24h"] if batch_data["XRP"] else 0
+        xrp_1h = 0.0
+        if xrp_price:
+            time.sleep(2)
+            xrp_1h = fetch_1h_change("XRP", "ripple")
+
+        return (btc_price, btc_24h, btc_1h), (sui_price, sui_24h, sui_1h), (bnb_price, bnb_24h, bnb_1h), (xrp_price, xrp_24h, xrp_1h)
+
+    # Fallback to individual fetches if batch fails
+    print("  Batch fetch failed, trying individual fetches...")
+
     # Fetch BTC
     print("\n  Fetching BTC...")
     btc_price, btc_24h, btc_1h = fetch_crypto_price("BTC", "BTCUSDT", "bitcoin")
-    time.sleep(2)  # Delay to avoid CoinGecko rate limiting
+    time.sleep(3)
 
     # Fetch SUI
     print("\n  Fetching SUI...")
     sui_price, sui_24h, sui_1h = fetch_crypto_price("SUI", "SUIUSDT", "sui")
-    time.sleep(2)  # Delay to avoid CoinGecko rate limiting
+    time.sleep(3)
 
     # Fetch BNB
     print("\n  Fetching BNB...")
     bnb_price, bnb_24h, bnb_1h = fetch_crypto_price("BNB", "BNBUSDT", "binancecoin")
-    time.sleep(2)  # Delay to avoid CoinGecko rate limiting
+    time.sleep(3)
 
-    # Fetch XRP (with retry if it fails)
+    # Fetch XRP
     print("\n  Fetching XRP...")
     xrp_price, xrp_24h, xrp_1h = fetch_crypto_price("XRP", "XRPUSDT", "ripple")
 
-    # Retry XRP if it failed (common due to rate limiting)
-    if xrp_price is None:
-        print("  XRP failed, retrying after 5 seconds...")
-        time.sleep(5)
-        xrp_price, xrp_24h, xrp_1h = fetch_crypto_price("XRP", "XRPUSDT", "ripple")
-
     return (btc_price, btc_24h, btc_1h), (sui_price, sui_24h, sui_1h), (bnb_price, bnb_24h, bnb_1h), (xrp_price, xrp_24h, xrp_1h)
+
+
+def fetch_1h_change(symbol, coingecko_id):
+    """Fetch only 1-hour change for a specific crypto"""
+    try:
+        import time
+        current_timestamp = int(time.time())
+        from_timestamp = current_timestamp - 7200  # 2 hours ago
+
+        chart_url = f"https://api.coingecko.com/api/v3/coins/{coingecko_id}/market_chart/range?vs_currency=usd&from={from_timestamp}&to={current_timestamp}"
+        chart_response = requests.get(chart_url, timeout=10)
+
+        if chart_response.status_code == 200:
+            chart_data = chart_response.json()
+            if 'prices' in chart_data and len(chart_data['prices']) >= 2:
+                latest_price = chart_data['prices'][-1][1]
+                latest_timestamp = chart_data['prices'][-1][0] / 1000
+
+                target_timestamp = latest_timestamp - 3600
+                closest_idx = 0
+                min_diff = float('inf')
+
+                for i, (timestamp_ms, price) in enumerate(chart_data['prices']):
+                    timestamp = timestamp_ms / 1000
+                    diff = abs(timestamp - target_timestamp)
+                    if diff < min_diff:
+                        min_diff = diff
+                        closest_idx = i
+
+                price_1h_ago = chart_data['prices'][closest_idx][1]
+                change_1h = ((latest_price - price_1h_ago) / price_1h_ago) * 100
+                print(f"  [{symbol}] 1h change: {change_1h:+.2f}%")
+                return change_1h
+
+    except Exception as e:
+        print(f"  [{symbol}] Could not fetch 1h data: {e}")
+
+    return 0.0
 
 
 def format_message(btc_data, sui_data, bnb_data, xrp_data):
