@@ -124,13 +124,13 @@ def fetch_crypto_price(symbol, binance_symbol, coingecko_id):
 
 
 def fetch_all_cryptos_batch():
-    """Fetch all 4 cryptos in a single batch call to avoid rate limiting"""
+    """Fetch BTC and XAUT in a single batch call to avoid rate limiting"""
     import time
     print("Fetching all crypto prices in batch...")
 
     try:
-        # Single batch call for all 4 cryptos (price + 24h change)
-        url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,sui,binancecoin,ripple&vs_currencies=usd&include_24hr_change=true"
+        # Single batch call for both cryptos (price + 24h change)
+        url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,tether-gold&vs_currencies=usd&include_24hr_change=true"
         response = requests.get(url, timeout=10)
 
         if response.status_code != 200:
@@ -138,11 +138,11 @@ def fetch_all_cryptos_batch():
             return None
 
         data = response.json()
-        print(f"  Successfully fetched all 4 cryptos in one call")
+        print(f"  Successfully fetched both cryptos in one call")
 
         # Extract data for each crypto
         results = {}
-        for symbol, coin_id in [("BTC", "bitcoin"), ("SUI", "sui"), ("BNB", "binancecoin"), ("XRP", "ripple")]:
+        for symbol, coin_id in [("BTC", "bitcoin"), ("XAUT", "tether-gold")]:
             if coin_id in data:
                 results[symbol] = {
                     "price": data[coin_id]['usd'],
@@ -158,10 +158,43 @@ def fetch_all_cryptos_batch():
         return None
 
 
+def fetch_ihsg_data():
+    """Fetch IHSG (Jakarta Composite Index) price and change via Yahoo Finance"""
+    try:
+        print("  [IHSG] Fetching from Yahoo Finance...")
+        ticker = yf.Ticker("^JKSE")
+        hist = ticker.history(period="5d", interval="1h")
+
+        if hist.empty:
+            print("  [IHSG] No data returned")
+            return None, None, None
+
+        current_price = float(hist['Close'].iloc[-1])
+
+        # Change since previous close (market isn't open 24h, unlike crypto)
+        prev_close = ticker.fast_info.get("previousClose") if hasattr(ticker.fast_info, "get") else None
+        if not prev_close:
+            prev_close = getattr(ticker.fast_info, "previous_close", None)
+        change_24h = ((current_price - prev_close) / prev_close) * 100 if prev_close else 0.0
+
+        # 1h change from the most recent two hourly candles (during market hours)
+        change_1h = 0.0
+        if len(hist) >= 2:
+            price_1h_ago = float(hist['Close'].iloc[-2])
+            change_1h = ((current_price - price_1h_ago) / price_1h_ago) * 100
+
+        print(f"  [IHSG] Success! Price: {current_price:,.2f}, since prev close: {change_24h:+.2f}%, 1h: {change_1h:+.2f}%")
+        return current_price, change_24h, change_1h
+
+    except Exception as e:
+        print(f"  [IHSG] Failed: {e}")
+        return None, None, None
+
+
 def fetch_stock_data():
-    """Fetch BTC, SUI, BNB, and XRP prices"""
+    """Fetch BTC, XAUT, and IHSG prices"""
     import time
-    print("Fetching crypto prices...")
+    print("Fetching prices...")
 
     # Try batch fetch first (more efficient, avoids rate limiting)
     batch_data = fetch_all_cryptos_batch()
@@ -175,28 +208,16 @@ def fetch_stock_data():
             time.sleep(2)
             btc_1h = fetch_1h_change("BTC", "bitcoin")
 
-        sui_price = batch_data["SUI"]["price"] if batch_data["SUI"] else None
-        sui_24h = batch_data["SUI"]["change_24h"] if batch_data["SUI"] else 0
-        sui_1h = 0.0
-        if sui_price:
+        xaut_price = batch_data["XAUT"]["price"] if batch_data["XAUT"] else None
+        xaut_24h = batch_data["XAUT"]["change_24h"] if batch_data["XAUT"] else 0
+        xaut_1h = 0.0
+        if xaut_price:
             time.sleep(2)
-            sui_1h = fetch_1h_change("SUI", "sui")
+            xaut_1h = fetch_1h_change("XAUT", "tether-gold")
 
-        bnb_price = batch_data["BNB"]["price"] if batch_data["BNB"] else None
-        bnb_24h = batch_data["BNB"]["change_24h"] if batch_data["BNB"] else 0
-        bnb_1h = 0.0
-        if bnb_price:
-            time.sleep(2)
-            bnb_1h = fetch_1h_change("BNB", "binancecoin")
+        ihsg_price, ihsg_24h, ihsg_1h = fetch_ihsg_data()
 
-        xrp_price = batch_data["XRP"]["price"] if batch_data["XRP"] else None
-        xrp_24h = batch_data["XRP"]["change_24h"] if batch_data["XRP"] else 0
-        xrp_1h = 0.0
-        if xrp_price:
-            time.sleep(2)
-            xrp_1h = fetch_1h_change("XRP", "ripple")
-
-        return (btc_price, btc_24h, btc_1h), (sui_price, sui_24h, sui_1h), (bnb_price, bnb_24h, bnb_1h), (xrp_price, xrp_24h, xrp_1h)
+        return (btc_price, btc_24h, btc_1h), (xaut_price, xaut_24h, xaut_1h), (ihsg_price, ihsg_24h, ihsg_1h)
 
     # Fallback to individual fetches if batch fails
     print("  Batch fetch failed, trying individual fetches...")
@@ -206,21 +227,14 @@ def fetch_stock_data():
     btc_price, btc_24h, btc_1h = fetch_crypto_price("BTC", "BTCUSDT", "bitcoin")
     time.sleep(3)
 
-    # Fetch SUI
-    print("\n  Fetching SUI...")
-    sui_price, sui_24h, sui_1h = fetch_crypto_price("SUI", "SUIUSDT", "sui")
-    time.sleep(3)
+    # Fetch XAUT
+    print("\n  Fetching XAUT...")
+    xaut_price, xaut_24h, xaut_1h = fetch_crypto_price("XAUT", "XAUTUSDT", "tether-gold")
 
-    # Fetch BNB
-    print("\n  Fetching BNB...")
-    bnb_price, bnb_24h, bnb_1h = fetch_crypto_price("BNB", "BNBUSDT", "binancecoin")
-    time.sleep(3)
+    # Fetch IHSG
+    ihsg_price, ihsg_24h, ihsg_1h = fetch_ihsg_data()
 
-    # Fetch XRP
-    print("\n  Fetching XRP...")
-    xrp_price, xrp_24h, xrp_1h = fetch_crypto_price("XRP", "XRPUSDT", "ripple")
-
-    return (btc_price, btc_24h, btc_1h), (sui_price, sui_24h, sui_1h), (bnb_price, bnb_24h, bnb_1h), (xrp_price, xrp_24h, xrp_1h)
+    return (btc_price, btc_24h, btc_1h), (xaut_price, xaut_24h, xaut_1h), (ihsg_price, ihsg_24h, ihsg_1h)
 
 
 def fetch_1h_change(symbol, coingecko_id):
@@ -261,12 +275,11 @@ def fetch_1h_change(symbol, coingecko_id):
     return 0.0
 
 
-def format_message(btc_data, sui_data, bnb_data, xrp_data):
-    """Format message for small wearable screen with BTC, SUI, BNB, and XRP"""
+def format_message(btc_data, xaut_data, ihsg_data):
+    """Format message for small wearable screen with BTC, XAUT, and IHSG"""
     btc_price, btc_24h, btc_1h = btc_data
-    sui_price, sui_24h, sui_1h = sui_data
-    bnb_price, bnb_24h, bnb_1h = bnb_data
-    xrp_price, xrp_24h, xrp_1h = xrp_data
+    xaut_price, xaut_24h, xaut_1h = xaut_data
+    ihsg_price, ihsg_24h, ihsg_1h = ihsg_data
 
     lines = []
 
@@ -277,26 +290,19 @@ def format_message(btc_data, sui_data, bnb_data, xrp_data):
     else:
         lines.append("BTC: Data N/A")
 
-    # Format SUI
-    if sui_price is not None:
-        sui_str = f"SUI ${sui_price:.3f} [{sui_24h:+.2f}%] [{sui_1h:+.2f}%]"
-        lines.append(sui_str)
+    # Format XAUT
+    if xaut_price is not None:
+        xaut_str = f"XAUT ${xaut_price:,.2f} [{xaut_24h:+.2f}%] [{xaut_1h:+.2f}%]"
+        lines.append(xaut_str)
     else:
-        lines.append("SUI: Data N/A")
+        lines.append("XAUT: Data N/A")
 
-    # Format BNB
-    if bnb_price is not None:
-        bnb_str = f"BNB ${bnb_price:,.2f} [{bnb_24h:+.2f}%] [{bnb_1h:+.2f}%]"
-        lines.append(bnb_str)
+    # Format IHSG
+    if ihsg_price is not None:
+        ihsg_str = f"IHSG {ihsg_price:,.2f} [{ihsg_24h:+.2f}%] [{ihsg_1h:+.2f}%]"
+        lines.append(ihsg_str)
     else:
-        lines.append("BNB: Data N/A")
-
-    # Format XRP
-    if xrp_price is not None:
-        xrp_str = f"XRP ${xrp_price:.3f} [{xrp_24h:+.2f}%] [{xrp_1h:+.2f}%]"
-        lines.append(xrp_str)
-    else:
-        lines.append("XRP: Data N/A")
+        lines.append("IHSG: Data N/A")
 
     # Join with newline for compact display
     message = "\n".join(lines)
@@ -360,14 +366,13 @@ def main():
     print(f"Chat ID: {chat_id}")
     print()
 
-    # Fetch crypto data
-    btc_data, sui_data, bnb_data, xrp_data = fetch_stock_data()
+    # Fetch price data
+    btc_data, xaut_data, ihsg_data = fetch_stock_data()
 
     # Display fetched data
     btc_price, btc_24h, btc_1h = btc_data
-    sui_price, sui_24h, sui_1h = sui_data
-    bnb_price, bnb_24h, bnb_1h = bnb_data
-    xrp_price, xrp_24h, xrp_1h = xrp_data
+    xaut_price, xaut_24h, xaut_1h = xaut_data
+    ihsg_price, ihsg_24h, ihsg_1h = ihsg_data
 
     print()
     if btc_price is not None:
@@ -375,23 +380,18 @@ def main():
     else:
         print("BTC: Could not fetch data")
 
-    if sui_price is not None:
-        print(f"SUI: ${sui_price:.3f}, 24h: {sui_24h:+.2f}%, 1h: {sui_1h:+.2f}%")
+    if xaut_price is not None:
+        print(f"XAUT: ${xaut_price:,.2f}, 24h: {xaut_24h:+.2f}%, 1h: {xaut_1h:+.2f}%")
     else:
-        print("SUI: Could not fetch data")
+        print("XAUT: Could not fetch data")
 
-    if bnb_price is not None:
-        print(f"BNB: ${bnb_price:,.2f}, 24h: {bnb_24h:+.2f}%, 1h: {bnb_1h:+.2f}%")
+    if ihsg_price is not None:
+        print(f"IHSG: {ihsg_price:,.2f}, since prev close: {ihsg_24h:+.2f}%, 1h: {ihsg_1h:+.2f}%")
     else:
-        print("BNB: Could not fetch data")
-
-    if xrp_price is not None:
-        print(f"XRP: ${xrp_price:.3f}, 24h: {xrp_24h:+.2f}%, 1h: {xrp_1h:+.2f}%")
-    else:
-        print("XRP: Could not fetch data")
+        print("IHSG: Could not fetch data")
 
     # Format message
-    message = format_message(btc_data, sui_data, bnb_data, xrp_data)
+    message = format_message(btc_data, xaut_data, ihsg_data)
     print()
     print("Message Preview:")
     print("-" * 30)
